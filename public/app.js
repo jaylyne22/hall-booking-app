@@ -34,6 +34,7 @@ let expenses = [];
 let bookingsLoaded = false;
 let expensesLoaded = false;
 let unsubscribers = [];
+let permissionBannerShown = false;
 
 function calcSST(amount){
   return Number(amount) * SST_RATE;
@@ -211,6 +212,7 @@ if(!CONFIG_READY){
 function startListening(){
   stopListening();
   syncStatus.classList.remove('show');
+  permissionBannerShown = false;
 
   unsubscribers.push(onSnapshot(
     query(collection(db, BOOKINGS), orderBy('date')),
@@ -241,9 +243,34 @@ function stopListening(){
 function onSnapshotError(err, what){
   console.error(err);
   syncStatus.classList.add('show');
-  syncStatus.textContent = err.code === 'permission-denied'
-    ? `无法读取${what}资料：这个帐号还没被加进 members 名单。请在 Firebase Console 的 members 集合建立一份以你 UID 为文件 ID 的文件。`
-    : `${what}资料同步失败：${err.message}`;
+
+  if(err.code !== 'permission-denied'){
+    syncStatus.textContent = `${what}资料同步失败：${err.message}`;
+    return;
+  }
+
+  // 两个 listener 都会报同一个错，只显示一次
+  if(permissionBannerShown) return;
+  permissionBannerShown = true;
+
+  const uid = auth.currentUser ? auth.currentUser.uid : '';
+  syncStatus.innerHTML =
+    `这个帐号还没被加进 <code>members</code> 名单，所以看不到资料。<br>` +
+    `请到 Firebase Console → Firestore Database → <code>members</code> 集合，` +
+    `新增一份文件，<b>文件 ID 填下面这一串</b>：<br>` +
+    `<code class="uid">${escapeHtml(uid)}</code>` +
+    `<button type="button" id="copyUidBtn">复制</button>`;
+
+  const btn = $('copyUidBtn');
+  btn.addEventListener('click', async () => {
+    try{
+      await navigator.clipboard.writeText(uid);
+      btn.textContent = '已复制！';
+    }catch(e){
+      btn.textContent = '请手动选取复制';
+    }
+    setTimeout(() => { btn.textContent = '复制'; }, 2000);
+  });
 }
 
 function writeErrorText(err){

@@ -3,9 +3,9 @@
 //
 // 这几个值不是密码，可以放在公开的网页里。真正保护资料的是 firestore.rules
 // 里的规则 + 登入帐号，所以规则一定要照 README 部署上去。
-// Import the functions you need from the SDKs you need
-
-const firebaseConfig = {
+//
+// 注意：这一行的 export 不能删掉，app.js 要靠它读到设定。
+export const firebaseConfig = {
   apiKey: "AIzaSyAYkEBU0tmbYLRZ1aJmfHsEIAumT6e-dEo",
   authDomain: "cpt-traning-hall.firebaseapp.com",
   projectId: "cpt-traning-hall",

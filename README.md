@@ -69,6 +69,10 @@ firebase.json         Hosting / Firestore / 模拟器设定
 复制画面上 `firebaseConfig = { … }` 里的值，覆盖 `public/firebase-config.js`
 里的 `PASTE_…` 占位字串。
 
+> ⚠️ 只换大括号里的值，**开头的 `export` 不能删掉** —— Console 复制出来的那段
+> 是写 `const firebaseConfig = {`，少了 `export`，`app.js` 就读不到设定，
+> 网页会整片空白。
+
 > 这几个值不是密码，放在公开网页里没问题 —— 真正挡人的是下一步的安全规则。
 
 ### 4. 部署安全规则
@@ -84,7 +88,7 @@ firebase login
 
 ```bash
 cd hall-booking-app
-firebase use --add          # 选你刚建立的专案，别名填 default
+firebase use --add          # 选 cpt-traning-hall，别名填 default
 firebase deploy --only firestore:rules
 ```
 
@@ -93,11 +97,18 @@ firebase deploy --only firestore:rules
 
 ### 5. 开帐号 + 加进 members 名单（每位同事各做一次）
 
-1. **Authentication → Users → 新增使用者**，填电邮和密码，建立。
-2. 复制那一列的 **使用者 UID**。
-3. **Firestore Database → 开始收集 → 集合 ID 填 `members`**。
-4. 新增文件，**文件 ID 就贴刚才的 UID**，栏位可以随便加一个方便辨认，例如
-   `name` (string) = `阿明`。储存。
+先在 **Authentication → Users → 新增使用者** 填电邮和密码建立帐号。
+
+接着不用去翻 UID —— 直接用那个帐号登入这个 app（本机或线上都行）。
+因为还没进名单，画面上方会出现一条红字，**里面就印着这个帐号的 UID，旁边有「复制」按钮**：
+
+> 这个帐号还没被加进 `members` 名单，所以看不到资料。
+> 请到 Firebase Console → Firestore Database → `members` 集合，
+> 新增一份文件，文件 ID 填下面这一串：`xxxxxxxx…` 〔复制〕
+
+照着做：**Firestore Database → 开始收集 → 集合 ID 填 `members` →
+新增文件 → 文件 ID 贴上刚复制的那串**。栏位可以随便加一个方便辨认，
+例如 `name` (string) = `阿明`。储存后重新整理网页，资料就出来了。
 
 之后要收回某人的权限，删掉他的 `members` 文件即可（帐号还在，但看不到资料）。
 
@@ -142,8 +153,11 @@ firebase deploy
 ## 常见问题
 
 **登入后画面顶端出现红字「还没被加进 members 名单」**
-步骤 5 的 `members` 文件没建，或文件 ID 打错。文件 ID 必须**完全等于**
-Authentication 里的 UID。
+这是正常的第一步 —— 照红字里的 UID 做步骤 5 就好。如果做了还是出现，
+表示文件 ID 打错了：必须**完全等于**红字里那一串，前后不能有空格。
+
+**网页整片空白，Console 出现 `does not provide an export named 'firebaseConfig'`**
+`public/firebase-config.js` 开头的 `export` 被删掉了，补回去。
 
 **`auth/operation-not-allowed`**
 步骤 2 的电邮／密码登入没开启。
