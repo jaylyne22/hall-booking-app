@@ -10,9 +10,9 @@
 
 name: Deploy to Firebase
 
+# 只能手动触发。预设的上线方式是 GitHub Pages (pages.yml)，
+# 这条是「想改用 Firebase Hosting」时才用，需要先设好 FIREBASE_SERVICE_ACCOUNT。
 on:
-  push:
-    branches: [claude/firebase-database-integration-kdy6lu]
   workflow_dispatch:
 
 # 同一时间只跑一个部署，避免两次存档互相覆盖

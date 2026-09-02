@@ -150,6 +150,7 @@ function authErrorText(code){
     case 'auth/too-many-requests':    return '尝试次数太多，请稍后再试。';
     case 'auth/network-request-failed': return '网络连线失败，请检查网络。';
     case 'auth/operation-not-allowed': return '尚未在 Firebase 开启「电邮/密码」登入方式。';
+    case 'auth/unauthorized-domain':  return '这个网址还没加进 Firebase 的授权网域。请到 Authentication → Settings → 授权网域，加入 ' + location.hostname + '。';
     default:                          return '登入失败：' + code;
   }
 }

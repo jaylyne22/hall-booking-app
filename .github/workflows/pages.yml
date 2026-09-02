@@ -1,0 +1,59 @@
+# 部署到 GitHub Pages —— 不需要任何 secret，也不用装工具。
+#
+# 一次性设定（在浏览器做）：
+#   GitHub 仓库 → Settings → Pages → Build and deployment →
+#   Source 选 "GitHub Actions"
+#
+# 设定好之后，每次在 GitHub 上改档案按 Commit，网站就自动更新。
+# 网址：https://jaylyne22.github.io/hall-booking-app/
+#
+# 注意：这只部署「网页」。Firestore 安全规则要另外在
+# Firebase Console → Firestore Database → 规则 分页贴上并发布。
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [claude/firebase-database-integration-kdy6lu]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只跑一个部署
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 检查设定档没有漏掉 export
+        run: |
+          grep -q '^export const firebaseConfig' public/firebase-config.js \
+            || { echo "::error file=public/firebase-config.js::开头必须是 'export const firebaseConfig = {'，少了 export 网页会整片空白。"; exit 1; }
+          if grep -q 'PASTE_' public/firebase-config.js; then
+            echo "::error file=public/firebase-config.js::还有 PASTE_ 占位字串没换掉。"
+            exit 1
+          fi
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

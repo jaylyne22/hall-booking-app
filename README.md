@@ -10,10 +10,14 @@ public/
   app.js              程式逻辑 + Firestore 同步
   firebase-config.js  ← 你要填的 Firebase 设定
 firestore.rules       安全规则（谁可以读写）
-firebase.json         Hosting / Firestore / 模拟器设定
+firebase.json         Firebase Hosting / 模拟器设定（选用）
 .firebaserc           指定 Firebase 专案 (cpt-traning-hall)
-.github/workflows/    GitHub 自动部署
+.github/workflows/
+  pages.yml           自动部署到 GitHub Pages ← 目前用这个
+  deploy.yml          部署到 Firebase Hosting（手动，选用）
 ```
+
+**线上网址：<https://jaylyne22.github.io/hall-booking-app/>**
 
 ---
 
@@ -77,44 +81,42 @@ firebase.json         Hosting / Firestore / 模拟器设定
 
 > 这几个值不是密码，放在公开网页里没问题 —— 真正挡人的是下一步的安全规则。
 
-### 4. 部署安全规则（两种做法，选一种）
+### 4. 部署安全规则
 
 规则决定「谁能读写资料」。**没做这一步，Firestore 还停在预设状态。**
+这一步不用任何工具：
 
-#### 做法 A：直接在 Firebase Console 贴（最快，先用这个）
-
-1. **Firestore Database → 规则（Rules）分页**。
+1. Firebase Console → **Firestore Database → 规则（Rules）分页**。
 2. 把这个仓库里 [`firestore.rules`](firestore.rules) 的**整份内容**复制，
    覆盖编辑器里原本的东西。
 3. 按 **发布（Publish）**。
 
-一分钟搞定，不用装任何工具。之后规则有改，回来重贴一次就好。
+之后规则有改，回来重贴一次就好。
 
-#### 做法 B：让 GitHub 自动部署（顺便解决网站上线）
+### 5. 把网站发布出去（GitHub Pages）
 
-仓库里已经有 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)。
-设定好之后，**每次你在 GitHub 网页上改档案存档，它就自动把网站和规则一起部署**，
-你完全不用碰指令列。
+仓库里已经有 [`.github/workflows/pages.yml`](.github/workflows/pages.yml)，
+**不需要任何密码或金钥**。只要开一次开关：
 
-一次性设定（全部在浏览器）：
+**GitHub 仓库 → Settings → Pages → Build and deployment → Source 选「GitHub Actions」**
 
-1. 到 **Google Cloud Console → IAM 与管理 → 服务帐户**
-   （<https://console.cloud.google.com/iam-admin/serviceaccounts?project=cpt-traning-hall>）。
-2. **建立服务帐户**，名称随便打，例如 `github-deploy`。
-3. 授予角色：**Firebase Admin**，再加一个 **Service Usage Consumer**。建立完成。
-4. 点进那个帐户 → **金钥（Keys）→ 新增金钥 → 建立新的金钥 → JSON**，会下载一个 `.json` 档。
-5. 用记事本之类的打开那个档案，**整份内容**复制起来。
-6. 回到 GitHub 这个仓库 → **Settings → Secrets and variables → Actions →
-   New repository secret**。
-   - Name：`FIREBASE_SERVICE_ACCOUNT`
-   - Secret：贴上刚才整份 JSON
-7. 到 **Actions** 分页 → 左边选 **Deploy to Firebase** → 右边 **Run workflow**。
+存好之后，到 **Actions** 分页 → 左边选 **Deploy to GitHub Pages** →
+右边 **Run workflow**，跑完就上线了：
 
-> 🔒 **这份 JSON 是真的密码**，跟前面的 `firebaseConfig` 不一样。
-> 不要 commit 进仓库、不要贴在聊天室、不要传给任何人。只放进 GitHub Secrets。
-> 万一外流了，回到步骤 4 的金钥页面把那把金钥删掉再重建一把。
+**<https://jaylyne22.github.io/hall-booking-app/>**
 
-### 5. 开帐号 + 加进 members 名单（每位同事各做一次）
+以后每次在 GitHub 网页上改档案按 Commit，它就自动重新部署，一两分钟生效。
+
+### 6. 把网址加进 Firebase 授权网域（不做就登不进去）
+
+Firebase 预设只让自家网域登入，GitHub Pages 的网址要手动加：
+
+**Authentication → Settings（设定）→ 授权网域（Authorized domains）→
+新增网域 → 填 `jaylyne22.github.io`**
+
+漏了这步，登入时会跳 `auth/unauthorized-domain`（app 里会直接告诉你要加哪个网域）。
+
+### 7. 开帐号 + 加进 members 名单（每位同事各做一次）
 
 先在 **Authentication → Users → 新增使用者** 填电邮和密码建立帐号。
 
@@ -131,28 +133,67 @@ firebase.json         Hosting / Firestore / 模拟器设定
 
 之后要收回某人的权限，删掉他的 `members` 文件即可（帐号还在，但看不到资料）。
 
-### 6. 网址
+### 8. 之后要改东西
 
-做法 B 跑成功之后，网址是：
+直接在 GitHub 网页上编辑档案 → Commit changes → Actions 自动重新部署。
+想知道成功没有，看 **Actions** 分页：绿色勾勾是成功，红色叉叉点进去看错误讯息。
 
-- <https://cpt-traning-hall.web.app>
-- <https://cpt-traning-hall.firebaseapp.com>
+---
 
-手机浏览器打开，加到主画面，用起来就像一个 app。
+## 仓库是公开的，资料会外流吗？
 
-### 7. 之后要改东西
+不会 —— 但要知道界线在哪：
 
-直接在 GitHub 网页上编辑档案 → Commit changes → Actions 自动重新部署，
-大概一两分钟后重新整理网页就看到新版。
+| 东西 | 公开看得到吗 | 有关系吗 |
+|---|---|---|
+| `firebaseConfig` 那七个值 | 看得到 | 没关系，这是设计上就公开的 |
+| `firestore.rules` | 看得到 | 没关系，规则本来就该经得起被看 |
+| **预订／支出资料** | **看不到** | 存在 Firestore，不在仓库里 |
+| 帐号密码 | 看不到 | 存在 Firebase Authentication |
 
-想知道部署成功没有，看 **Actions** 分页：绿色勾勾是成功，红色叉叉点进去看错误讯息。
+陌生人拿到那七个值，最多只能连到你的专案，然后**被规则挡在门外** ——
+因为规则要求「必须是 `members` 集合里的 UID」，而 `members` 只有你能在 Console 加。
 
-### 补充：如果你之后有电脑可以装工具
+### 建议再做一层（可选）
+
+因为 API 金钥公开了，别人虽然拿不到资料，但可以拿它去消耗你的免费额度。
+把金钥锁在你自己的网域就好：
+
+**[Google Cloud Console → 凭证](https://console.cloud.google.com/apis/credentials?project=cpt-traning-hall)
+→ 点那把 Browser key → 应用程式限制选「HTTP 参照网址」→ 加入：**
+
+```
+jaylyne22.github.io/*
+cpt-traning-hall.firebaseapp.com/*
+```
+
+加完等几分钟生效。如果之后换了网址，记得回来补。
+
+---
+
+## 想改用 Firebase Hosting？
+
+Pages 已经够用了。真的想换（例如想要 `cpt-traning-hall.web.app` 这个网址），
+仓库里的 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) 就是干这个的，
+它是手动触发的，需要先设一个 `FIREBASE_SERVICE_ACCOUNT` secret：
+
+1. [Google Cloud Console → 服务帐户](https://console.cloud.google.com/iam-admin/serviceaccounts?project=cpt-traning-hall)
+   → 建立服务帐户，角色给 **Firebase Admin** + **Service Usage Consumer**
+2. 进去 → 金钥 → 新增金钥 → **JSON** → 下载
+3. GitHub → Settings → Secrets and variables → Actions → New repository secret
+   - Name：`FIREBASE_SERVICE_ACCOUNT`，Secret：整份 JSON
+4. Actions → Deploy to Firebase → Run workflow
+
+> 🔒 那份 JSON **是真的密码**，跟 `firebaseConfig` 完全不同。
+> 不要 commit、不要贴给任何人，只放 GitHub Secrets。
+> 记得把新网域也加进步骤 6 的授权网域。
+
+### 如果你之后有电脑可以装工具
 
 ```bash
 npm install -g firebase-tools
 firebase login
-firebase deploy          # .firebaserc 已经指定好专案，不用再 use --add
+firebase deploy          # .firebaserc 已经指定好专案
 ```
 
 ---
@@ -179,18 +220,19 @@ firebase deploy          # .firebaserc 已经指定好专案，不用再 use --a
 步骤 2 的电邮／密码登入没开启。
 
 **把 `index.html` 下载下来双击打开，整片空白**
-不能用 `file://` 直接开，浏览器会挡掉 ES modules。一定要用步骤 6 的网址。
+不能用 `file://` 直接开，浏览器会挡掉 ES modules。一定要用步骤 5 的网址。
+
+**登入时跳 `auth/unauthorized-domain`**
+步骤 6 没做 —— 网址没加进 Firebase 的授权网域。app 的错误讯息会直接印出要加哪一个。
 
 **改了 `firestore.rules` 之后没生效**
-用做法 A 的话，改完要回 Console 重贴一次并按发布。用做法 B 的话，
-存档后去 Actions 分页确认那次部署是绿色勾勾。
+规则不会跟着 Pages 一起走。改完要回 Firebase Console 的规则分页重贴一次并按发布。
 
 **Actions 跑出红色叉叉**
-点进去看最后一步的讯息：
-- `找不到 FIREBASE_SERVICE_ACCOUNT secret` → 步骤 4 做法 B 的第 6 点没做完。
-- `Permission denied` / `caller does not have permission` → 服务帐户角色不够，
-  回步骤 4 做法 B 第 3 点补上 **Firebase Admin**。
+点进去看是哪一步：
 - `开头必须是 export const firebaseConfig` → 设定档的 `export` 被删掉了。
+- `Get Pages site failed` / `Resource not accessible` → 步骤 5 的
+  Settings → Pages → Source 还没选「GitHub Actions」。
 
 ---
 
