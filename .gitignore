@@ -2,3 +2,8 @@ node_modules/
 .firebase/
 *.log
 .DS_Store
+
+# Firebase 服务帐户金钥 —— 绝对不能进仓库，只放 GitHub Secrets
+*-firebase-adminsdk-*.json
+serviceAccount*.json
+service-account*.json

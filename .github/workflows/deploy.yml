@@ -1,0 +1,67 @@
+# 从 GitHub 直接部署到 Firebase —— 不需要在自己的电脑装任何东西。
+#
+# 一次性设定（全部在浏览器做，见 README「设定步骤 4」）：
+#   1. Google Cloud Console 建一个服务帐户，下载 JSON 金钥
+#   2. GitHub → Settings → Secrets and variables → Actions → New repository secret
+#      名称：FIREBASE_SERVICE_ACCOUNT   内容：整份 JSON
+#
+# 设定好之后，每次在 GitHub 上改档案存档，这个流程就会自动跑一次部署。
+# 也可以到 Actions 分页手动按 "Run workflow"。
+
+name: Deploy to Firebase
+
+on:
+  push:
+    branches: [claude/firebase-database-integration-kdy6lu]
+  workflow_dispatch:
+
+# 同一时间只跑一个部署，避免两次存档互相覆盖
+concurrency:
+  group: firebase-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安装 Firebase CLI
+        run: npm install -g firebase-tools@^13
+
+      - name: 写入服务帐户金钥
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then
+            echo "::error::找不到 FIREBASE_SERVICE_ACCOUNT secret。请照 README 步骤 4 建立。"
+            exit 1
+          fi
+          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+          # 只检查格式，不印出内容
+          node -e "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/sa.json','utf8'))" \
+            || { echo "::error::这个 secret 不是合法的 JSON，请重新完整复制一次金钥档案。"; exit 1; }
+
+      - name: 检查设定档没有漏掉 export
+        run: |
+          grep -q '^export const firebaseConfig' public/firebase-config.js \
+            || { echo "::error file=public/firebase-config.js::开头必须是 'export const firebaseConfig = {'，少了 export 网页会整片空白。"; exit 1; }
+          grep -q 'PASTE_' public/firebase-config.js \
+            && { echo "::error file=public/firebase-config.js::还有 PASTE_ 占位字串没换掉。"; exit 1; } || true
+
+      - name: 部署 Hosting + Firestore 规则
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: |
+          firebase deploy \
+            --only hosting,firestore:rules \
+            --project cpt-traning-hall \
+            --non-interactive
+
+      - name: 清掉金钥
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"

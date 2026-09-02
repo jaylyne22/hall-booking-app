@@ -11,6 +11,8 @@ public/
   firebase-config.js  ← 你要填的 Firebase 设定
 firestore.rules       安全规则（谁可以读写）
 firebase.json         Hosting / Firestore / 模拟器设定
+.firebaserc           指定 Firebase 专案 (cpt-traning-hall)
+.github/workflows/    GitHub 自动部署
 ```
 
 ---
@@ -75,31 +77,48 @@ firebase.json         Hosting / Firestore / 模拟器设定
 
 > 这几个值不是密码，放在公开网页里没问题 —— 真正挡人的是下一步的安全规则。
 
-### 4. 部署安全规则
+### 4. 部署安全规则（两种做法，选一种）
 
-安装 CLI 并登入（只需一次）：
+规则决定「谁能读写资料」。**没做这一步，Firestore 还停在预设状态。**
 
-```bash
-npm install -g firebase-tools
-firebase login
-```
+#### 做法 A：直接在 Firebase Console 贴（最快，先用这个）
 
-在专案资料夹里绑定你的 Firebase 专案，然后送出规则：
+1. **Firestore Database → 规则（Rules）分页**。
+2. 把这个仓库里 [`firestore.rules`](firestore.rules) 的**整份内容**复制，
+   覆盖编辑器里原本的东西。
+3. 按 **发布（Publish）**。
 
-```bash
-cd hall-booking-app
-firebase use --add          # 选 cpt-traning-hall，别名填 default
-firebase deploy --only firestore:rules
-```
+一分钟搞定，不用装任何工具。之后规则有改，回来重贴一次就好。
 
-规则的意思：**只有出现在 `members` 集合里的登入帐号**才能读写
-`bookings` 和 `expenses`，其余一律拒绝。
+#### 做法 B：让 GitHub 自动部署（顺便解决网站上线）
+
+仓库里已经有 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)。
+设定好之后，**每次你在 GitHub 网页上改档案存档，它就自动把网站和规则一起部署**，
+你完全不用碰指令列。
+
+一次性设定（全部在浏览器）：
+
+1. 到 **Google Cloud Console → IAM 与管理 → 服务帐户**
+   （<https://console.cloud.google.com/iam-admin/serviceaccounts?project=cpt-traning-hall>）。
+2. **建立服务帐户**，名称随便打，例如 `github-deploy`。
+3. 授予角色：**Firebase Admin**，再加一个 **Service Usage Consumer**。建立完成。
+4. 点进那个帐户 → **金钥（Keys）→ 新增金钥 → 建立新的金钥 → JSON**，会下载一个 `.json` 档。
+5. 用记事本之类的打开那个档案，**整份内容**复制起来。
+6. 回到 GitHub 这个仓库 → **Settings → Secrets and variables → Actions →
+   New repository secret**。
+   - Name：`FIREBASE_SERVICE_ACCOUNT`
+   - Secret：贴上刚才整份 JSON
+7. 到 **Actions** 分页 → 左边选 **Deploy to Firebase** → 右边 **Run workflow**。
+
+> 🔒 **这份 JSON 是真的密码**，跟前面的 `firebaseConfig` 不一样。
+> 不要 commit 进仓库、不要贴在聊天室、不要传给任何人。只放进 GitHub Secrets。
+> 万一外流了，回到步骤 4 的金钥页面把那把金钥删掉再重建一把。
 
 ### 5. 开帐号 + 加进 members 名单（每位同事各做一次）
 
 先在 **Authentication → Users → 新增使用者** 填电邮和密码建立帐号。
 
-接着不用去翻 UID —— 直接用那个帐号登入这个 app（本机或线上都行）。
+接着不用去翻 UID —— 直接用那个帐号登入这个 app。
 因为还没进名单，画面上方会出现一条红字，**里面就印着这个帐号的 UID，旁边有「复制」按钮**：
 
 > 这个帐号还没被加进 `members` 名单，所以看不到资料。
@@ -112,31 +131,28 @@ firebase deploy --only firestore:rules
 
 之后要收回某人的权限，删掉他的 `members` 文件即可（帐号还在，但看不到资料）。
 
-### 6. 本机试跑
+### 6. 网址
 
-ES modules 不能用 `file://` 直接开，要起一个小伺服器：
+做法 B 跑成功之后，网址是：
 
-```bash
-firebase serve --only hosting     # http://localhost:5000
-# 或者
-npx serve public
-```
+- <https://cpt-traning-hall.web.app>
+- <https://cpt-traning-hall.firebaseapp.com>
 
-用步骤 5 建的帐号登入，试着新增一笔预订，再开另一个浏览器视窗登入同一帐号 ——
-应该马上同步出现。
+手机浏览器打开，加到主画面，用起来就像一个 app。
 
-### 7. 部署上线
+### 7. 之后要改东西
 
-```bash
-firebase deploy --only hosting
-```
+直接在 GitHub 网页上编辑档案 → Commit changes → Actions 自动重新部署，
+大概一两分钟后重新整理网页就看到新版。
 
-完成后会给你一个 `https://<专案>.web.app` 的网址，手机浏览器加到主画面就像 app 一样。
+想知道部署成功没有，看 **Actions** 分页：绿色勾勾是成功，红色叉叉点进去看错误讯息。
 
-以后要一次送出规则和网站：
+### 补充：如果你之后有电脑可以装工具
 
 ```bash
-firebase deploy
+npm install -g firebase-tools
+firebase login
+firebase deploy          # .firebaserc 已经指定好专案，不用再 use --add
 ```
 
 ---
@@ -162,11 +178,19 @@ firebase deploy
 **`auth/operation-not-allowed`**
 步骤 2 的电邮／密码登入没开启。
 
-**打开网页整片空白，Console 出现 CORS 或 module 错误**
-你用 `file://` 直接开了。要照步骤 6 起伺服器。
+**把 `index.html` 下载下来双击打开，整片空白**
+不能用 `file://` 直接开，浏览器会挡掉 ES modules。一定要用步骤 6 的网址。
 
 **改了 `firestore.rules` 之后没生效**
-规则不会随 hosting 一起走，要另外 `firebase deploy --only firestore:rules`。
+用做法 A 的话，改完要回 Console 重贴一次并按发布。用做法 B 的话，
+存档后去 Actions 分页确认那次部署是绿色勾勾。
+
+**Actions 跑出红色叉叉**
+点进去看最后一步的讯息：
+- `找不到 FIREBASE_SERVICE_ACCOUNT secret` → 步骤 4 做法 B 的第 6 点没做完。
+- `Permission denied` / `caller does not have permission` → 服务帐户角色不够，
+  回步骤 4 做法 B 第 3 点补上 **Firebase Admin**。
+- `开头必须是 export const firebaseConfig` → 设定档的 `export` 被删掉了。
 
 ---
 
