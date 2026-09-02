@@ -12,9 +12,9 @@
 
 name: Deploy to GitHub Pages
 
+# 备用方案。目前网站是 Vercel 在跑 (https://cpt-hall-booking.vercel.app)，
+# 所以这条改成只能手动触发。要改用 GitHub Pages 才需要跑它。
 on:
-  push:
-    branches: [claude/firebase-database-integration-kdy6lu]
   workflow_dispatch:
 
 permissions:

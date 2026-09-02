@@ -13,11 +13,11 @@ firestore.rules       安全规则（谁可以读写）
 firebase.json         Firebase Hosting / 模拟器设定（选用）
 .firebaserc           指定 Firebase 专案 (cpt-traning-hall)
 .github/workflows/
-  pages.yml           自动部署到 GitHub Pages ← 目前用这个
-  deploy.yml          部署到 Firebase Hosting（手动，选用）
+  pages.yml           部署到 GitHub Pages（手动，备用）
+  deploy.yml          部署到 Firebase Hosting（手动，备用）
 ```
 
-**线上网址：<https://jaylyne22.github.io/hall-booking-app/>**
+**线上网址：<https://cpt-hall-booking.vercel.app>**（Vercel 托管）
 
 ---
 
@@ -93,26 +93,25 @@ firebase.json         Firebase Hosting / 模拟器设定（选用）
 
 之后规则有改，回来重贴一次就好。
 
-### 5. 把网站发布出去（GitHub Pages）
+### 5. 网站已经上线了
 
-仓库里已经有 [`.github/workflows/pages.yml`](.github/workflows/pages.yml)，
-**不需要任何密码或金钥**。只要开一次开关：
+网站跑在 Vercel 上：
 
-**GitHub 仓库 → Settings → Pages → Build and deployment → Source 选「GitHub Actions」**
+**<https://cpt-hall-booking.vercel.app>**
 
-存好之后，到 **Actions** 分页 → 左边选 **Deploy to GitHub Pages** →
-右边 **Run workflow**，跑完就上线了：
+手机浏览器打开，加到主画面，用起来就像一个 app。
 
-**<https://jaylyne22.github.io/hall-booking-app/>**
-
-以后每次在 GitHub 网页上改档案按 Commit，它就自动重新部署，一两分钟生效。
+> 目前 Vercel 还没跟 GitHub 连起来，所以**在 GitHub 上改档案不会自动更新网站**。
+> 要打开自动更新：Vercel → 该专案 → Settings → Git → Connect Git Repository，
+> 选 `jaylyne22/hall-booking-app`，Root Directory 填 `public`。
+> 连好之后每次 Commit 就会自动重新部署。
 
 ### 6. 把网址加进 Firebase 授权网域（不做就登不进去）
 
-Firebase 预设只让自家网域登入，GitHub Pages 的网址要手动加：
+Firebase 预设只让自家网域登入，Vercel 的网址要手动加：
 
 **Authentication → Settings（设定）→ 授权网域（Authorized domains）→
-新增网域 → 填 `jaylyne22.github.io`**
+新增网域 → 填 `cpt-hall-booking.vercel.app`**
 
 漏了这步，登入时会跳 `auth/unauthorized-domain`（app 里会直接告诉你要加哪个网域）。
 
@@ -163,7 +162,7 @@ Firebase 预设只让自家网域登入，GitHub Pages 的网址要手动加：
 → 点那把 Browser key → 应用程式限制选「HTTP 参照网址」→ 加入：**
 
 ```
-jaylyne22.github.io/*
+cpt-hall-booking.vercel.app/*
 cpt-traning-hall.firebaseapp.com/*
 ```
 
@@ -171,9 +170,12 @@ cpt-traning-hall.firebaseapp.com/*
 
 ---
 
-## 想改用 Firebase Hosting？
+## 想换别的托管？
 
-Pages 已经够用了。真的想换（例如想要 `cpt-traning-hall.web.app` 这个网址），
+Vercel 已经够用了。仓库里另外留了两条手动的部署流程当备用：
+`pages.yml`（GitHub Pages，需要先在 Settings → Pages 把 Source 选成 GitHub Actions）、
+`deploy.yml`（Firebase Hosting）。真的想换到 Firebase Hosting（例如想要
+`cpt-traning-hall.web.app` 这个网址），
 仓库里的 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) 就是干这个的，
 它是手动触发的，需要先设一个 `FIREBASE_SERVICE_ACCOUNT` secret：
 
@@ -228,11 +230,8 @@ firebase deploy          # .firebaserc 已经指定好专案
 **改了 `firestore.rules` 之后没生效**
 规则不会跟着 Pages 一起走。改完要回 Firebase Console 的规则分页重贴一次并按发布。
 
-**Actions 跑出红色叉叉**
-点进去看是哪一步：
-- `开头必须是 export const firebaseConfig` → 设定档的 `export` 被删掉了。
-- `Get Pages site failed` / `Resource not accessible` → 步骤 5 的
-  Settings → Pages → Source 还没选「GitHub Actions」。
+**在 GitHub 改了档案，但网站没变**
+Vercel 还没跟 GitHub 连起来（见步骤 5 的灰框）。连起来之前，改动只会留在仓库里。
 
 ---
 
