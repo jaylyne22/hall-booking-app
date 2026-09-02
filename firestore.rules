@@ -1,0 +1,55 @@
+rules_version = '2';
+
+// CPT Traning Hall 订场管理 —— Firestore 安全规则
+//
+// 原则：只有被列在 members 集合里的登入帐号，才能读写预订和支出。
+// 光是「有帐号」并不够 —— 管理员必须在 members 集合手动建立
+// 一份以该使用者 UID 为文件 ID 的文件，才算是团队成员。
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isMember() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/members/$(request.auth.uid));
+    }
+
+    function validBooking(d) {
+      return d.keys().hasAll(['date','endDate','startTime','endTime','customer','amount','status'])
+        && d.date is string && d.date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && d.endDate is string && d.endDate >= d.date
+        && d.startTime is string
+        && d.endTime is string
+        && d.customer is string && d.customer.size() > 0 && d.customer.size() <= 200
+        && d.amount is number && d.amount >= 0
+        && d.status in ['confirmed','tentative'];
+    }
+
+    function validExpense(d) {
+      return d.keys().hasAll(['date','item','amount'])
+        && d.date is string && d.date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && d.item is string && d.item.size() > 0 && d.item.size() <= 200
+        && d.amount is number && d.amount >= 0;
+    }
+
+    // 成员名单：成员可以确认自己在名单内，但只有管理员能在后台改动。
+    match /members/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /bookings/{id} {
+      allow read, delete: if isMember();
+      allow create, update: if isMember() && validBooking(request.resource.data);
+    }
+
+    match /expenses/{id} {
+      allow read, delete: if isMember();
+      allow create, update: if isMember() && validExpense(request.resource.data);
+    }
+
+    // 其余一律拒绝
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

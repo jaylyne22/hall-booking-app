@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPT Traning Hall — 订场管理</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- 登入闸门：未登入前只看到这一页 -->
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <h1>CPT Traning Hall<span>订场管理</span></h1>
+    <div class="field">
+      <label>电邮</label>
+      <input type="email" id="loginEmail" autocomplete="username" placeholder="you@example.com">
+    </div>
+    <div class="field">
+      <label>密码</label>
+      <input type="password" id="loginPassword" autocomplete="current-password">
+    </div>
+    <div class="err" id="loginErr"></div>
+    <div class="modal-actions" style="justify-content:stretch;">
+      <button class="primary" id="loginBtn" style="width:100%;">登入</button>
+    </div>
+    <div class="gate-note" id="gateNote">帐号由管理员在 Firebase 后台开设。忘记密码请联络管理员。</div>
+  </div>
+</div>
+
+<div class="wrap" id="app">
+
+  <header>
+    <h1>CPT Traning Hall<span>订场管理</span></h1>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <span class="who" id="whoAmI"></span>
+      <button class="ghost" id="importBtn">导入资料</button>
+      <button class="ghost" id="exportBtn">导出资料</button>
+      <button class="primary" id="addBtn">+ 新增预订</button>
+    </div>
+  </header>
+
+  <div class="sync" id="syncStatus"></div>
+
+  <div id="statsArea" class="loading">载入预订中…</div>
+
+  <section>
+    <div class="cal-head">
+      <div class="cal-month" id="calMonthLabel"></div>
+      <div class="cal-nav">
+        <button id="calPrev">‹</button>
+        <button id="calNext">›</button>
+      </div>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="cal-detail" id="calDetail"></div>
+  </section>
+
+  <section>
+    <div class="section-title">
+      <span>按月统计</span>
+      <button class="link" id="toggleMonthly">显示</button>
+    </div>
+    <div id="monthlyList" style="display:none;"></div>
+  </section>
+
+  <section>
+    <div class="section-title">即将到来</div>
+    <div id="upcomingList"></div>
+  </section>
+
+  <section>
+    <div class="section-title">
+      <span>历史预订</span>
+      <button class="link" id="togglePast">显示</button>
+    </div>
+    <div id="pastList" style="display:none;"></div>
+  </section>
+
+  <section>
+    <div class="section-title">
+      <span>采购 / 支出</span>
+      <button class="link" id="addExpenseBtn">+ 新增支出</button>
+    </div>
+    <div id="expenseList"></div>
+  </section>
+
+</div>
+
+<div class="overlay" id="exportOverlay">
+  <div class="modal" style="max-width: 560px;">
+    <h2>导出资料</h2>
+    <p class="hint">这是目前资料库里的全部资料，复制起来可以另存备份。</p>
+    <div class="field">
+      <textarea id="exportText" rows="10" readonly style="font-family:monospace; font-size:12px;"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="ghost" id="exportCloseBtn">关闭</button>
+      <button class="primary" id="exportCopyBtn">复制</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="importOverlay">
+  <div class="modal" style="max-width: 560px;">
+    <h2>导入资料</h2>
+    <p class="hint">
+      把旧版「导出资料」拿到的整段 JSON 贴进来，按导入即可搬进资料库。
+      同一笔资料重复导入会变成两笔，请只导入一次。
+    </p>
+    <div class="field">
+      <textarea id="importText" rows="10" placeholder='{ "bookings": [...], "expenses": [...] }' style="font-family:monospace; font-size:12px;"></textarea>
+    </div>
+    <div class="err" id="importErr"></div>
+    <div class="modal-actions">
+      <button class="ghost" id="importCloseBtn">关闭</button>
+      <button class="primary" id="importRunBtn">导入</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="expenseOverlay">
+  <div class="modal">
+    <h2>新增支出</h2>
+    <div class="field">
+      <label>日期</label>
+      <input type="date" id="xDate">
+    </div>
+    <div class="field">
+      <label>买了什么</label>
+      <input type="text" id="xItem" placeholder="例如：桌布、饮料、清洁用品">
+    </div>
+    <div class="field">
+      <label>金额 (RM)</label>
+      <input type="number" id="xAmount" placeholder="例如：120" step="0.01">
+    </div>
+    <div class="err" id="xErr">请填写日期、项目和金额。</div>
+    <div class="modal-actions">
+      <button class="ghost" id="xCancelBtn">取消</button>
+      <button class="primary" id="xSaveBtn">保存支出</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2>新增预订</h2>
+    <div class="field-row">
+      <div class="field">
+        <label>开始日期</label>
+        <input type="date" id="fDate">
+      </div>
+      <div class="field">
+        <label>结束日期 <span style="color:var(--sage-dim); font-weight:400;">(可选)</span></label>
+        <input type="date" id="fEndDate">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>开始时间</label>
+        <input type="time" id="fStart">
+      </div>
+      <div class="field">
+        <label>结束时间</label>
+        <input type="time" id="fEnd">
+      </div>
+    </div>
+    <div class="field">
+      <label>状态</label>
+      <div class="status-toggle" id="statusToggle">
+        <button type="button" class="status-btn active" data-status="confirmed">确定</button>
+        <button type="button" class="status-btn" data-status="tentative">暂定</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>顾客 / 活动名称</label>
+      <input type="text" id="fCustomer" placeholder="例如:陈家生日会">
+    </div>
+    <div class="field">
+      <label>金额 (RM)</label>
+      <input type="number" id="fAmount" placeholder="例如:350" step="0.01">
+    </div>
+    <div class="field">
+      <label>备注 <span style="color:var(--sage-dim); font-weight:400;">(可选)</span></label>
+      <textarea id="fNotes" rows="2" placeholder="其他需要记住的事项"></textarea>
+    </div>
+    <div class="err" id="formErr">请填写日期、时间、顾客名称和金额。</div>
+    <div class="modal-actions">
+      <button class="ghost" id="cancelBtn">取消</button>
+      <button class="primary" id="saveBtn">保存预订</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
