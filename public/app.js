@@ -27,12 +27,15 @@ if(CONFIG_READY){
 
 const BOOKINGS = 'bookings';
 const EXPENSES = 'expenses';
+const ADSPEND = 'adSpend';
 const SST_RATE = 0.08; // Malaysia SST (service tax), deducted from the booking amount
 
 let bookings = [];
 let expenses = [];
+let adSpend = [];
 let bookingsLoaded = false;
 let expensesLoaded = false;
+let adSpendLoaded = false;
 let unsubscribers = [];
 let permissionBannerShown = false;
 
@@ -198,8 +201,8 @@ if(!CONFIG_READY){
       startListening();
     } else {
       stopListening();
-      bookings = []; expenses = [];
-      bookingsLoaded = false; expensesLoaded = false;
+      bookings = []; expenses = []; adSpend = [];
+      bookingsLoaded = false; expensesLoaded = false; adSpendLoaded = false;
       appEl.classList.remove('ready');
       gate.classList.remove('hidden');
     }
@@ -220,7 +223,7 @@ function startListening(){
     (snap) => {
       bookings = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       bookingsLoaded = true;
-      if(expensesLoaded) render();
+      if(allLoaded()) render();
     },
     (err) => onSnapshotError(err, '预订')
   ));
@@ -230,10 +233,24 @@ function startListening(){
     (snap) => {
       expenses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       expensesLoaded = true;
-      if(bookingsLoaded) render();
+      if(allLoaded()) render();
     },
     (err) => onSnapshotError(err, '支出')
   ));
+
+  unsubscribers.push(onSnapshot(
+    query(collection(db, ADSPEND), orderBy('month', 'desc')),
+    (snap) => {
+      adSpend = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      adSpendLoaded = true;
+      if(allLoaded()) render();
+    },
+    (err) => onSnapshotError(err, '广告费')
+  ));
+}
+
+function allLoaded(){
+  return bookingsLoaded && expensesLoaded && adSpendLoaded;
 }
 
 function stopListening(){
@@ -250,7 +267,7 @@ function onSnapshotError(err, what){
     return;
   }
 
-  // 两个 listener 都会报同一个错，只显示一次
+  // 每个 listener 都会报同一个错，只显示一次
   if(permissionBannerShown) return;
   permissionBannerShown = true;
 
@@ -474,6 +491,7 @@ function render(){
     : `<div class="empty">暂无历史记录。</div>`;
 
   renderMonthly();
+  renderMarketing();
   renderExpenses();
 
   document.querySelectorAll('#upcomingList .del, #pastList .del').forEach(btn => {
@@ -509,6 +527,202 @@ function renderMonthly(){
       }).join('')
     : `<div class="empty">暂无记录。</div>`;
 }
+
+/* ------------------------------------------------------------------ *
+ * 广告 / 行销看板
+ * ------------------------------------------------------------------ */
+
+const AD_PLATFORMS = ['Facebook / IG', 'Google', 'TikTok', '小红书', '其他'];
+let marketingBasis = 'closed'; // 'closed' = 按成交日 (createdAt)，'event' = 按活动日 (date)
+
+// 一笔预订算在哪个月：按成交日看「广告带来的单」，按活动日看「那个月的场」
+function bookingMonth(b){
+  if(marketingBasis === 'closed' && b.createdAt){
+    const d = new Date(b.createdAt);
+    if(!isNaN(d)) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
+  return b.date.slice(0,7);
+}
+
+function monthLabel(key){
+  const [y,m] = key.split('-').map(Number);
+  return `${y}年${MON_FULL[m-1]}`;
+}
+
+function marketingRows(){
+  const groups = {}; // "YYYY-MM" -> {spend, deals, gp, byPlatform}
+  const g = (key) => groups[key] = groups[key] || {spend:0, deals:0, gp:0, byPlatform:{}};
+
+  adSpend.forEach(a => {
+    const row = g(a.month);
+    row.spend += Number(a.amount || 0);
+    row.byPlatform[a.platform] = (row.byPlatform[a.platform] || 0) + Number(a.amount || 0);
+  });
+  bookings.filter(isConfirmed).forEach(b => {
+    const row = g(bookingMonth(b));
+    row.deals += 1;
+    row.gp += calcGP(b.amount || 0);
+  });
+
+  return Object.keys(groups).sort().map(key => ({ key, ...groups[key] }));
+}
+
+function fmtRatio(gp, spend){
+  return spend > 0 ? (gp / spend).toFixed(1) + 'x' : '—';
+}
+
+function renderMarketing(){
+  const rows = marketingRows();
+  const totalSpend = rows.reduce((s,r) => s + r.spend, 0);
+  const totalDeals = rows.reduce((s,r) => s + r.deals, 0);
+  const totalGP = rows.reduce((s,r) => s + r.gp, 0);
+  const now = new Date();
+  const thisKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const cur = rows.find(r => r.key === thisKey) || {spend:0, deals:0, gp:0};
+
+  $('mktStats').innerHTML = `
+    <div class="stat">
+      <div class="label">本月广告费</div>
+      <div class="row"><div class="num">${fmtMoney(cur.spend)}</div></div>
+      <div class="breakdown">成交 ${cur.deals} 场 · GP <span class="gp">${fmtMoney(cur.gp)}</span></div>
+      <div class="breakdown">ROI ${fmtRatio(cur.gp, cur.spend)}${cur.deals && cur.spend ? ` · 每场成本 ${fmtMoney(cur.spend / cur.deals)}` : ''}</div>
+    </div>
+    <div class="stat">
+      <div class="label">累计广告费</div>
+      <div class="row"><div class="num">${fmtMoney(totalSpend)}</div></div>
+      <div class="breakdown">成交 ${totalDeals} 场 · GP <span class="gp">${fmtMoney(totalGP)}</span></div>
+      <div class="breakdown">ROI ${fmtRatio(totalGP, totalSpend)}${totalDeals && totalSpend ? ` · 每场成本 ${fmtMoney(totalSpend / totalDeals)}` : ''}</div>
+    </div>`;
+
+  // 图表只画最近 12 个有资料的月份
+  renderMarketingChart(rows.slice(-12));
+
+  const recent = [...rows].reverse();
+  $('mktTable').innerHTML = recent.length ? `
+    <table class="mkt-table">
+      <thead><tr>
+        <th>月份</th><th>广告费</th><th>成交</th><th>成交 GP</th><th>ROI</th><th>每场成本</th>
+      </tr></thead>
+      <tbody>
+        ${recent.map(r => `<tr${r.key === thisKey ? ' class="current"' : ''}>
+          <td>${monthLabel(r.key)}</td>
+          <td title="${escapeHtml(Object.entries(r.byPlatform).map(([p,v]) => `${p} ${fmtMoney(v)}`).join('\n'))}">${r.spend ? fmtMoney(r.spend) : '—'}</td>
+          <td>${r.deals} 场</td>
+          <td class="gp">${fmtMoney(r.gp)}</td>
+          <td>${fmtRatio(r.gp, r.spend)}</td>
+          <td>${r.spend && r.deals ? fmtMoney(r.spend / r.deals) : '—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>` : `<div class="empty">暂无资料。点击上方"+ 新增广告费"开始记录。</div>`;
+
+  const sortedSpend = [...adSpend].sort((a,b) => b.month.localeCompare(a.month));
+  $('adSpendList').innerHTML = sortedSpend.length
+    ? sortedSpend.map(a => `
+      <div class="expense-row">
+        <div class="e-mid">
+          <div class="e-item">${escapeHtml(a.platform)}</div>
+          <div class="e-date">${monthLabel(a.month)}${a.notes ? ' · ' + escapeHtml(a.notes) : ''}</div>
+        </div>
+        <div class="e-right">
+          <div class="e-amt">-${fmtMoney(a.amount)}</div>
+          <button class="del del-ad" data-id="${a.id}" title="删除">✕</button>
+        </div>
+      </div>`).join('')
+    : '';
+
+  document.querySelectorAll('.del-ad').forEach(btn => {
+    attachDeleteConfirm(btn, () => removeDoc(ADSPEND, btn.dataset.id, btn));
+  });
+}
+
+// 每月两根柱：广告费 vs 成交 GP（同一个 RM 轴）
+function renderMarketingChart(rows){
+  const el = $('mktChart');
+  if(!rows.length){ el.innerHTML = ''; return; }
+
+  // 按容器实际宽度画，手机上字才不会被缩小
+  const W = Math.max(300, (el.clientWidth || 720) - 14), H = 220, padL = 44, padR = 8, padT = 10, padB = 26;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const max = Math.max(1, ...rows.map(r => Math.max(r.spend, r.gp)));
+  const step = niceStep(max / 4);
+  const top = Math.ceil(max / step) * step;
+  const y = (v) => padT + plotH - (v / top) * plotH;
+
+  const band = plotW / rows.length;
+  const barW = Math.max(4, Math.min(22, (band - 10) / 2));
+
+  let svg = '';
+  for(let v = 0; v <= top; v += step){
+    svg += `<line class="grid" x1="${padL}" x2="${W - padR}" y1="${y(v)}" y2="${y(v)}"/>`;
+    svg += `<text class="axis" x="${padL - 6}" y="${y(v) + 4}" text-anchor="end">${shortMoney(v)}</text>`;
+  }
+  rows.forEach((r, i) => {
+    const cx = padL + band * i + band / 2;
+    svg += bar(cx - barW - 1, barW, r.spend, 'spend');
+    svg += bar(cx + 1, barW, r.gp, 'gp');
+    const [yy, mm] = r.key.split('-');
+    svg += `<text class="axis" x="${cx}" y="${H - 8}" text-anchor="middle">${Number(mm)}月${i === 0 || mm === '01' ? ` '${yy.slice(2)}` : ''}</text>`;
+    // 整个月份的透明感应区，比柱子大，方便手机点
+    svg += `<rect class="hit" data-i="${i}" x="${padL + band * i}" y="${padT}" width="${band}" height="${plotH}"/>`;
+  });
+
+  function bar(x, w, v, cls){
+    if(v <= 0) return '';
+    const h = Math.max(1, y(0) - y(v));
+    const r = Math.min(4, w / 2, h);
+    // 顶端圆角、底部贴齐基线
+    return `<path class="bar ${cls}" d="M${x},${y(0)} V${y(0) - h + r} Q${x},${y(0) - h} ${x + r},${y(0) - h} H${x + w - r} Q${x + w},${y(0) - h} ${x + w},${y(0) - h + r} V${y(0)} Z"/>`;
+  }
+
+  el.innerHTML = `
+    <div class="mkt-legend">
+      <span><i class="sw spend"></i>广告费</span>
+      <span><i class="sw gp"></i>成交 GP</span>
+    </div>
+    <div class="mkt-chart-wrap">
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="每月广告费与成交 GP">${svg}</svg>
+      <div class="mkt-tip" id="mktTip"></div>
+    </div>`;
+
+  const tip = $('mktTip');
+  el.querySelectorAll('.hit').forEach(h => {
+    const show = () => {
+      const r = rows[Number(h.dataset.i)];
+      el.querySelectorAll('.hit').forEach(o => o.classList.toggle('on', o === h));
+      tip.innerHTML = `<b>${monthLabel(r.key)}</b>
+        <div><i class="sw spend"></i>广告费 ${fmtMoney(r.spend)}</div>
+        <div><i class="sw gp"></i>成交 GP ${fmtMoney(r.gp)}</div>
+        <div class="muted">${r.deals} 场 · ROI ${fmtRatio(r.gp, r.spend)}</div>`;
+      const pct = (Number(h.getAttribute('x')) + band / 2) / W * 100;
+      tip.style.left = Math.min(80, Math.max(20, pct)) + '%';
+      tip.classList.add('show');
+    };
+    h.addEventListener('mouseenter', show);
+    h.addEventListener('click', show);
+  });
+  el.querySelector('svg').addEventListener('mouseleave', () => {
+    tip.classList.remove('show');
+    el.querySelectorAll('.hit').forEach(o => o.classList.remove('on'));
+  });
+}
+
+function niceStep(raw){
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / p;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p;
+}
+
+function shortMoney(v){
+  return v >= 1000 ? (v / 1000).toLocaleString('en-MY', {maximumFractionDigits: 1}) + 'k' : String(v);
+}
+
+document.querySelectorAll('#mktBasis .status-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mktBasis .status-btn').forEach(b => b.classList.toggle('active', b === btn));
+    marketingBasis = btn.dataset.basis;
+    if(allLoaded()) renderMarketing();
+  });
+});
 
 function renderExpenses(){
   const sorted = [...expenses].sort((a,b) => b.date.localeCompare(a.date));
@@ -700,6 +914,67 @@ xSaveBtn.addEventListener('click', async () => {
 });
 
 /* ------------------------------------------------------------------ *
+ * 新增广告费
+ * ------------------------------------------------------------------ */
+
+const adOverlay = $('adOverlay');
+const aSaveBtn = $('aSaveBtn');
+
+$('aPlatform').innerHTML = AD_PLATFORMS.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+
+$('addAdBtn').addEventListener('click', () => {
+  const now = new Date();
+  $('aMonth').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  $('aPlatform').value = AD_PLATFORMS[0];
+  $('aAmount').value = '';
+  $('aNotes').value = '';
+  $('aErr').classList.remove('show');
+  adOverlay.classList.add('open');
+});
+
+$('aCancelBtn').addEventListener('click', () => adOverlay.classList.remove('open'));
+adOverlay.addEventListener('click', (e) => { if(e.target === adOverlay) adOverlay.classList.remove('open'); });
+
+aSaveBtn.addEventListener('click', async () => {
+  const month = $('aMonth').value;
+  const platform = $('aPlatform').value;
+  const amount = $('aAmount').value;
+  const notes = $('aNotes').value.trim();
+  const aErr = $('aErr');
+
+  if(!/^\d{4}-\d{2}$/.test(month) || !platform || amount === ''){
+    aErr.textContent = '请填写月份、平台和金额。';
+    aErr.classList.add('show');
+    return;
+  }
+
+  aSaveBtn.disabled = true;
+  aSaveBtn.textContent = '保存中…';
+  try{
+    await addDoc(collection(db, ADSPEND), {
+      month, platform, amount: Number(amount), notes,
+      createdAt: new Date().toISOString(),
+      createdBy: auth.currentUser.uid
+    });
+    adOverlay.classList.remove('open');
+  }catch(e){
+    console.error(e);
+    aErr.textContent = writeErrorText(e);
+    aErr.classList.add('show');
+  }finally{
+    aSaveBtn.disabled = false;
+    aSaveBtn.textContent = '保存';
+  }
+});
+
+$('toggleAdList').addEventListener('click', () => {
+  const list = $('adSpendList');
+  const showing = list.style.display !== 'none';
+  list.style.display = showing ? 'none' : 'block';
+  $('toggleAdList').textContent = showing ? '显示广告费明细' : '隐藏广告费明细';
+});
+
+/* ------------------------------------------------------------------ *
  * 日历切换 / 折叠
  * ------------------------------------------------------------------ */
 
@@ -735,7 +1010,7 @@ const exportText = $('exportText');
 const exportCopyBtn = $('exportCopyBtn');
 
 $('exportBtn').addEventListener('click', () => {
-  exportText.value = JSON.stringify({ bookings, expenses }, null, 2);
+  exportText.value = JSON.stringify({ bookings, expenses, adSpend }, null, 2);
   exportOverlay.classList.add('open');
 });
 
@@ -780,8 +1055,9 @@ importRunBtn.addEventListener('click', async () => {
 
   const inBookings = Array.isArray(data.bookings) ? data.bookings : [];
   const inExpenses = Array.isArray(data.expenses) ? data.expenses : [];
-  if(!inBookings.length && !inExpenses.length){
-    importErr.textContent = '找不到 bookings 或 expenses 资料。';
+  const inAdSpend = Array.isArray(data.adSpend) ? data.adSpend : [];
+  if(!inBookings.length && !inExpenses.length && !inAdSpend.length){
+    importErr.textContent = '找不到 bookings、expenses 或 adSpend 资料。';
     importErr.classList.add('show');
     return;
   }
@@ -813,6 +1089,17 @@ importRunBtn.addEventListener('click', async () => {
       createdBy: uid
     }]);
   }
+  for(const a of inAdSpend){
+    if(!a || !/^\d{4}-\d{2}$/.test(a.month)) continue;
+    writes.push([ADSPEND, {
+      month: String(a.month),
+      platform: String(a.platform || '其他'),
+      amount: Number(a.amount || 0),
+      notes: String(a.notes || ''),
+      createdAt: String(a.createdAt || new Date().toISOString()),
+      createdBy: uid
+    }]);
+  }
 
   if(!writes.length){
     importErr.textContent = '资料格式不符合，没有任何一笔可以导入。';
@@ -841,4 +1128,11 @@ importRunBtn.addEventListener('click', async () => {
     importRunBtn.disabled = false;
     importRunBtn.textContent = '导入';
   }
+});
+
+// 转向 / 改视窗大小时重画图表
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if(allLoaded()) renderMarketing(); }, 150);
 });

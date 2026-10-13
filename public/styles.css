@@ -141,12 +141,12 @@ section{ margin-bottom: 36px; }
 .modal p.hint{ font-size:13px; color:var(--sage); margin-bottom:14px; line-height:1.6; }
 .field{ margin-bottom: 16px; }
 .field label{ display:block; font-size:12px; color: var(--sage); margin-bottom:6px; letter-spacing:0.2px;}
-.field input, .field textarea{
+.field input, .field textarea, .field select{
   width:100%; background: var(--bg); border: 1px solid var(--line);
   color: var(--ivory); padding: 10px 12px; font-family:'Work Sans',sans-serif;
   font-size: 14px;
 }
-.field input:focus, .field textarea:focus{ outline: 1px solid var(--gold); border-color: var(--gold); }
+.field input:focus, .field textarea:focus, .field select:focus{ outline: 1px solid var(--gold); border-color: var(--gold); }
 .field-row{ display:flex; gap: 12px; }
 .field-row .field{ flex:1; }
 .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top: 22px; }
@@ -290,8 +290,51 @@ button.ghost{
   padding: 2px 8px; margin-left: 8px;
 }
 
+/* Marketing dashboard */
+:root{
+  --series-spend: #eb6834;
+  --series-gp: #2a78d6;
+}
+.mkt-basis{ max-width: 260px; margin-bottom: 14px; }
+.mkt-stats{ margin-bottom: 18px; }
+.mkt-stats .num{ font-size: 24px; }
+.mkt-legend{ display:flex; gap: 16px; font-size: 12px; color: var(--sage); margin-bottom: 6px; }
+.sw{ display:inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.sw.spend{ background: var(--series-spend); }
+.sw.gp{ background: var(--series-gp); }
+.mkt-chart-wrap{ position:relative; background: var(--surface); border: 1px solid var(--line); padding: 8px 6px 0; margin-bottom: 16px; }
+.mkt-chart-wrap svg{ display:block; width:100%; height:auto; }
+.mkt-chart-wrap .grid{ stroke: var(--line); stroke-width: 1; }
+.mkt-chart-wrap .axis{ font-size: 11px; fill: var(--sage); font-family:'Work Sans',sans-serif; }
+.mkt-chart-wrap .bar.spend{ fill: var(--series-spend); }
+.mkt-chart-wrap .bar.gp{ fill: var(--series-gp); }
+.mkt-chart-wrap .hit{ fill: transparent; cursor: pointer; }
+.mkt-chart-wrap .hit.on{ fill: rgba(63,63,59,0.06); }
+.mkt-tip{
+  position:absolute; top: 8px; transform: translateX(-50%);
+  background: var(--surface); border: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgba(43,42,39,0.12);
+  padding: 8px 10px; font-size: 12px; line-height: 1.6; color: var(--ivory);
+  pointer-events:none; display:none; white-space:nowrap;
+}
+.mkt-tip.show{ display:block; }
+.mkt-tip .muted{ color: var(--sage); }
+.mkt-table{ width:100%; border-collapse: collapse; font-size: 13px; }
+.mkt-table th{
+  text-align:right; font-weight: 500; color: var(--sage); font-size: 12px;
+  padding: 8px 6px; border-bottom: 1px solid var(--line);
+}
+.mkt-table td{ text-align:right; padding: 10px 6px; border-bottom: 1px solid var(--line); white-space:nowrap; font-variant-numeric: tabular-nums; }
+.mkt-table th:first-child, .mkt-table td:first-child{ text-align:left; }
+.mkt-table td:first-child{ font-weight: 500; }
+.mkt-table td.gp{ color: var(--gold); font-weight: 600; }
+.mkt-table tr.current td{ background: var(--surface-raised); }
+#mktTable{ overflow-x:auto; }
+
 @media (max-width: 480px){
   .stats{ grid-template-columns: 1fr; }
   .booking{ flex-wrap: wrap; }
   .cal-day{ min-height: 44px; }
+  .mkt-table{ font-size: 12px; }
+  .mkt-table th, .mkt-table td{ padding: 8px 4px; }
 }
